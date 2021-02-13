@@ -40,17 +40,10 @@ In the first block (boot block or partition start block) you will have a table l
 \begin{center}
 \begin{tabular}{ |c|c| }
 \hline
-! Offset
-! Purpose
-|-
-| +0
-| Magic ASCII characters: 'DvFS'
-|-
-| +4
-| Type of driver metadata (01 = CHS, 02 = LBA). For the average real mode x86 kernel: don't worry about LBA.
-|-
-| +5
-| Serial code (3 bytes). Use this to identify device (like a label)
+Offset & Purpose \\
++0 & Magic ASCII characters: 'DvFS' \\
++4 & Type of driver metadata (01 = CHS, 02 = LBA). For the average real mode x86 kernel: don't worry about LBA \\
++5 & Serial code (3 bytes). Use this to identify device (like a label) \\
 \hline
 \end{tabular}
 \end{center}
