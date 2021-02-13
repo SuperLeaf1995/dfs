@@ -1,0 +1,221 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{multirow}
+\usepackage[latin1]{inputenc}
+
+\title{DividendFS}
+\author{Superleaf1995}
+\date{20/02/13}
+
+\begin{document}
+\maketitle
+
+'''DividendFS''' (or '''DFS''' for short) surges from the idea that a simple filesystem should be designed to be as easy as possible to growing kernels, while being fast and reliable for more mature ones.
+
+The endianess will always be little, this is because fields on DFS are normally 64-bit, but to also support 16-bit hosts.
+
+Please notice that DFS trades off '''size''' for '''speed'''.
+
+\section{Preface}
+When one is developing a kernel, the last thing they want to implement is a complex inode interface, the first thing the want to do is to read a sector and load a simple hello world program.
+This is where DFS takes it's bases of.
+
+\section{Interface}
+DFS is agnostic of file and directories, everything is a node. But don't worry, the interface is designed to be as simple as possible.
+
+Also, nothing is 512 byte padded. Everything can be everywhere (except sizes, but those can also be non-padded too if your kernel is mature enough).
+
+The only thing you need to implement is the Babysteps interface, everything else is optional.
+
+\section{Babysteps interface}
+
+\subsection{Boot block}
+
+Please note that a boot loader should not come along this header, boot loaders should have the full 512 available, all for themselves; DFS recognizes that, and thus, this header is found in the sector after the boot loader.
+
+In the first block (boot block or partition start block) you will have a table like this:
+
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+! Offset
+! Purpose
+|-
+| +0
+| Magic ASCII characters: 'DvFS'
+|-
+| +4
+| Type of driver metadata (01 = CHS, 02 = LBA). For the average real mode x86 kernel: don't worry about LBA.
+|-
+| +5
+| Serial code (3 bytes). Use this to identify device (like a label)
+\hline
+\end{tabular}
+\end{center}
+
+Most kernels should NOT implement LBA interface, unless they are mature enough to support said format. The interface you want is CHS for normal bootloaders. Each cell in the table represents 4 bytes.
+
+\begin{center}
+\begin{tabular}{ |c|c|c| }
+\hline
+Offset & CHS & LBA \\
+\hline
++8 & \multirow{2}{2.6em}{Number of sectors} \multirow{8}{10.4em}{Number of logical blocks} \\
++9 & & \\
++10 & \multirow{2}{2.6em}{Sectors per track} & \\
++11 & & \\
++12 & \multirow{2}{2.6em}{Number of heads/sides} & \\
++13 & & \\
++14 & \multirow{2}{2.6em}{Reserved} & \\
++15 & & \\
+\hline
+\end{tabular}
+\end{center}
+
+For simplicity, all "pointers" in DFS assume that the disk is a big contiguous array.
+
+The next block on the disk contains the root entry for all nodes.
+
+\subsection{Parsing the entries chain}
+
+The entries are easy, and can be told as follows:
+
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+Offset & Description \\
+\hline
++0 & Previous entry (NIL if none) \\
++8 & Next entry (NIL if none) \\
++16 & Next file part (NIL if none) \\
++24 & Extra metadata (not needed for read-only) (NIL if none) \\
++32 & Symbolic link entry \\
++40 & UTC Creation time \\
++48 & UTC Edition time \\
++56 & Permissions \\
++64 & Location of null-terminated ASCII string representing name (NIL if none) \\
+\hline
+\end{tabular}
+\end{center}
+
+Each entry is 72 bytes in size. Size is in byte units. Previous and next entry fields are what their name says: they point to entries in the table.
+Data location points to the location (in disk) of the data of the file. Size is the size of the file, no EOF required!. Size should always be padded to 512 bytes.
+
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+Offset & Description \\
+\hline
++0 & Next file part (NIL if none) \\
++8 & Data location (NIL if none, i.e for a root describing heap only) \\
++16 & Size \\
+\hline
+\end{tabular}
+\end{center}
+
+Each fragment is 24 bytes in size.
+
+If a file is very big, or it needs to be split even more for whatever reason, the next file part will point to another entry that contains the remaining fragments. If this field is NIL, then it means there are no more fragments to look at, or simply there aren't any fragments and the entry contains the entire file :)
+
+Symbolic link entry points to the entry (if any) that the file should follow if "accessed", (Like a symbolic link).
+
+\subsection{Writing files}
+Writing files may not be so hard as it sounds (until you get post-babysteps), just keep track of the free and used sectors, modify your favorite root entry and voila! A new file!.
+
+\section{Post-babysteps interface}
+Once your kernel is able to print "Hello world" from "that" binary file, you may want to implement directories, guess what the extra metadata is for?. Yep, but not necessarily only for directories, it will also have other entries that may be useful for later.
+
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+Offset & Description \\
+\hline
++0 & Child chain (NIL if none) \\
++8 & Cache location \\
++16 & Cache size \\
++18 & Journaling location \\
++26 & Freeform start \\
++34 & Freeform size \\
++42 & Allocator start location (NIL if none) \\
++50 & Total size of allocator \\
++58 & Free allocator space \\
+\hline
+\end{tabular}
+\end{center}
+
+This totals to 66 bytes.
+
+For now: child chain contains a pointer to the start of a entry chain, this makes the current entry become the "parent" of those children. Thus making what we normally know as a directory.
+
+\subsection{Writing files}
+You can keep track of ALL nodes usage and make a flat list allocator (not very convenient, but you can do that on the early kernel stages, remember: DFS is made to be simple for early kernels).
+
+Root child nodes are guaranteed to have their ''first entry'' block within the allocator-location range.
+
+You can, however, read the extended metadata field of all root nodes (child nodes cannot have their own allocator location/size, because recursion bad). The allocator locations and sizes can then be moved into memory to create a "heap". If you want to write a new file, you find the first root node with enough size to host your file. Depending on your needs you may wish to fragment your file into several parts (i.e some PostgreSQL database of over 4G).
+
+Once you found a root node to host your entry at you should scan it's "heap start location" for heap blocks, which are structured in the following manner:
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+Offset & Description \\
+\hline
++0 & Next heap descriptor (NIL if none) \\
++8 & Start of heap entry list \\
++16 & Number of entries \\
+\hline
+\end{tabular}
+\end{center}
+
+The descriptor is 24 bytes in total. (following number\_of\_entries*sizeof(HeapEntry) bytes). Multiple descriptors can reside AND be allocated as needed.
+
+Each entry is like this:
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+Offset & Description \\
+\hline
++0 & Previous entry \\
++8 & Next entry \\
++16 & Address \\
++24 & Size \\
++32 & Type (01 = Free, 02 = Used) \\
+\hline
+\end{tabular}
+\end{center}
+
+33 bytes in total for this entry. How you manage the allocation system is up to you. But it's generally a map describing free and allocated areas of the disk you can use.
+
+This means that you merge/split and do other operations on the heap for writing and deleting files. While this still requires a flat list, you do not have to scan all child nodes and can do everything from a heap. And yes, you can allocate space for more heap descriptors if you ever ran out of them.
+
+Remember that you can always use a flat list, which is generally recommended for floppies.
+
+\section{Mature kernel}
+
+RB trees everywhere, priority scheduling, advanced IPC system, yet you still use DFS with flat list. It's time to stop!. Time to get real and fancy:
+
+\subsection{Cache}
+When you are trying to find a file you don't want to look up the entire child list (imagine 10K children!?). Now, this is where cache kicks in, cache is a sector (or sectors) of a disk dedicated to a small array table to address files by name OR/AND size.
+
+In the previous section there was a field called Cache location and Cache size. The size is in cache entries units. Now, each entry is organized like this:
+
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+Offset & Description \\
+\hline
++0 & Next cache entry (NIL if none) \\
++2 & Location of entry (Cannot be NIL) \\
++10 & First 8 characters of the file name (fast lookup) \\
++18 & Size of the file \\
+\hline
+\end{tabular}
+\end{center}
+
+26 bytes in total. A cache should be created if the OS thinks it is necessary (i.e very expensive lookup operation). And as always: Use the cache if available. And don't make it very big.
+
+'''More to be done and drafted'''
+
+\end{document}
