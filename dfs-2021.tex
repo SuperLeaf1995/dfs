@@ -7,16 +7,15 @@
 
 \title{DividendFS}
 \author{Superleaf1995}
-\date{20/02/13}
 
 \begin{document}
 \maketitle
 
-'''DividendFS''' (or '''DFS''' for short) surges from the idea that a simple filesystem should be designed to be as easy as possible to growing kernels, while being fast and reliable for more mature ones.
+\textbf{DividendFS} (or \textbf{DFS} for short) surges from the idea that a simple filesystem should be designed to be as easy as possible to growing kernels, while being fast and reliable for more mature ones.
 
 The endianess will always be little, this is because fields on DFS are normally 64-bit, but to also support 16-bit hosts.
 
-Please notice that DFS trades off '''size''' for '''speed'''.
+Please notice that DFS trades off \textbf{size} for \textbf{speed}.
 
 \section{Preface}
 When one is developing a kernel, the last thing they want to implement is a complex inode interface, the first thing the want to do is to read a sector and load a simple hello world program.
@@ -37,35 +36,41 @@ Please note that a boot loader should not come along this header, boot loaders s
 
 In the first block (boot block or partition start block) you will have a table like this:
 
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c| }
 \hline
 Offset & Purpose \\
+\hline
 +0 & Magic ASCII characters: 'DvFS' \\
-+4 & Type of driver metadata (01 = CHS, 02 = LBA). For the average real mode x86 kernel: don't worry about LBA \\
++4 & Type of device metadata (01 = CHS, 02 = LBA). For the average real \\
+& mode x86 kernel: don't worry about LBA \\
 +5 & Serial code (3 bytes). Use this to identify device (like a label) \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of the device boot header}
+\end{table}
 
 Most kernels should NOT implement LBA interface, unless they are mature enough to support said format. The interface you want is CHS for normal bootloaders. Each cell in the table represents 4 bytes.
 
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c|c| }
 \hline
 Offset & CHS & LBA \\
 \hline
-+8 & \multirow{2}{2.6em}{Number of sectors} \multirow{8}{10.4em}{Number of logical blocks} \\
++8 & \multirow{2}{*}{Number of sectors} & \multirow{8}{*}{Number of logical blocks} \\
 +9 & & \\
-+10 & \multirow{2}{2.6em}{Sectors per track} & \\
++10 & \multirow{2}{*}{Sectors per track} & \\
 +11 & & \\
-+12 & \multirow{2}{2.6em}{Number of heads/sides} & \\
++12 & \multirow{2}{*}{Number of heads/sides} & \\
 +13 & & \\
-+14 & \multirow{2}{2.6em}{Reserved} & \\
++14 & \multirow{2}{*}{Reserved} & \\
 +15 & & \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of the device metadata}
+\end{table}
 
 For simplicity, all "pointers" in DFS assume that the disk is a big contiguous array.
 
@@ -75,7 +80,8 @@ The next block on the disk contains the root entry for all nodes.
 
 The entries are easy, and can be told as follows:
 
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c| }
 \hline
 Offset & Description \\
@@ -88,15 +94,18 @@ Offset & Description \\
 +40 & UTC Creation time \\
 +48 & UTC Edition time \\
 +56 & Permissions \\
-+64 & Location of null-terminated ASCII string representing name (NIL if none) \\
++64 & Location of null-terminated ASCII string representing name \\
+& (NIL if none) \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of a node entry}
+\end{table}
 
 Each entry is 72 bytes in size. Size is in byte units. Previous and next entry fields are what their name says: they point to entries in the table.
 Data location points to the location (in disk) of the data of the file. Size is the size of the file, no EOF required!. Size should always be padded to 512 bytes.
 
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c| }
 \hline
 Offset & Description \\
@@ -106,7 +115,8 @@ Offset & Description \\
 +16 & Size \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of a node/file fragment}
+\end{table}
 
 Each fragment is 24 bytes in size.
 
@@ -120,7 +130,8 @@ Writing files may not be so hard as it sounds (until you get post-babysteps), ju
 \section{Post-babysteps interface}
 Once your kernel is able to print "Hello world" from "that" binary file, you may want to implement directories, guess what the extra metadata is for?. Yep, but not necessarily only for directories, it will also have other entries that may be useful for later.
 
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c| }
 \hline
 Offset & Description \\
@@ -136,7 +147,8 @@ Offset & Description \\
 +58 & Free allocator space \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of the extended metadata block}
+\end{table}
 
 This totals to 66 bytes.
 
@@ -150,7 +162,8 @@ Root child nodes are guaranteed to have their ''first entry'' block within the a
 You can, however, read the extended metadata field of all root nodes (child nodes cannot have their own allocator location/size, because recursion bad). The allocator locations and sizes can then be moved into memory to create a "heap". If you want to write a new file, you find the first root node with enough size to host your file. Depending on your needs you may wish to fragment your file into several parts (i.e some PostgreSQL database of over 4G).
 
 Once you found a root node to host your entry at you should scan it's "heap start location" for heap blocks, which are structured in the following manner:
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c| }
 \hline
 Offset & Description \\
@@ -160,12 +173,14 @@ Offset & Description \\
 +16 & Number of entries \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of the heap descriptor}
+\end{table}
 
 The descriptor is 24 bytes in total. (following number\_of\_entries*sizeof(HeapEntry) bytes). Multiple descriptors can reside AND be allocated as needed.
 
 Each entry is like this:
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c| }
 \hline
 Offset & Description \\
@@ -177,7 +192,8 @@ Offset & Description \\
 +32 & Type (01 = Free, 02 = Used) \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of the heap entry}
+\end{table}
 
 33 bytes in total for this entry. How you manage the allocation system is up to you. But it's generally a map describing free and allocated areas of the disk you can use.
 
@@ -194,7 +210,8 @@ When you are trying to find a file you don't want to look up the entire child li
 
 In the previous section there was a field called Cache location and Cache size. The size is in cache entries units. Now, each entry is organized like this:
 
-\begin{center}
+\begin{table}
+\centering
 \begin{tabular}{ |c|c| }
 \hline
 Offset & Description \\
@@ -205,10 +222,11 @@ Offset & Description \\
 +18 & Size of the file \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Structure of a cache entry}
+\end{table}
 
 26 bytes in total. A cache should be created if the OS thinks it is necessary (i.e very expensive lookup operation). And as always: Use the cache if available. And don't make it very big.
 
-'''More to be done and drafted'''
+\textbf{More to be done and drafted}
 
 \end{document}
