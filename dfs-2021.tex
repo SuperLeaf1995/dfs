@@ -2,6 +2,7 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\usepackage{tabularx}
 \usepackage{multirow}
 \usepackage[latin1]{inputenc}
 
@@ -14,6 +15,15 @@
 \section{Preface}
 \textbf{DividendFS} (or \textbf{DFS} for short) surges from the idea that a simple filesystem should be designed to be as easy to implement for growing kernels, while being fast and reliable for more mature ones.
 A main tradeoff of DFS is \textbf{size} for \textbf{speed}, which should be taken in account for all implementations.
+
+\section{Terminology}
+\begin{itemize}
+	\item Node descriptor: A block used to describe a node.
+	\item File fragment: A fragment that in conjunction creates what is formally known as a file.
+	\item Journal descriptor: A descriptor that describes a event or action to be done in the filesystem.
+	\item File: Refers to the conjuntion of file fragments that conform a file
+	\item Children: If used along with node descriptor; Describes the chain of node descriptors which conform a list of children in which the parent is parent of.
+\end{itemize}
 
 \section{Node filesystem}
 
@@ -29,32 +39,32 @@ In the first block (boot block or partition start block), at the start of the se
 
 \begin{table}
 \centering
-\begin{tabular}{ |c|c| }
+\begin{tabular}{ |c|c|c| }
 \hline
-Offset & Purpose \\
+Offset & Size & Purpose \\
 \hline
-+0 & 4 & Identifier ASCII characters: 'DvFS' \\
++0 & 4 & Identifier ASCII characters: "DvFS" \\
 +4 & 4 & DFS version, a valid implementation uses 00h \\
-+8 & 8 & First journaling block
-+16 & 8 & Max number of journaling blocks
-+24 & 8 & Current number of journaling blocks
-+32 & 8 & Root block
-+40 & 8 & Bitmap granularity
-+48 & 8 & Allocation bitmap location
-+56 & 8 & Size of partition
++8 & 8 & First journaling block \\
++16 & 8 & Max number of journaling blocks \\
++24 & 8 & Current number of journaling blocks \\
++32 & 8 & Root block \\
++40 & 8 & Bitmap granularity \\
++48 & 8 & Allocation bitmap location \\
++56 & 8 & Size of partition \\
 \hline
 \end{tabular}
 \caption{Structure of the partition descriptor}
 \end{table}
 
-Bitmap granularity specifies the number of bytes that each bit represents in the partition bitmap. The bitmap is a sequence of bytes that represents n bytes from the partition. Size of this bitmap (in bytes) can be determined by using the following formula: (size_of_partition/bitmap_granularity)/8
-Root block contains the UNIX equivalent of '/'.
+Bitmap granularity specifies the number of bytes that each bit represents in the partition bitmap. The bitmap is a sequence of bytes that represents n bytes from the partition. Size of this bitmap (in bytes) can be determined by using the following formula: (size\_of\_partition/bitmap\_granularity)/8
+Root block contains the UNIX equivalent of "/".
 
 \subsection{Node entry}
 
 \begin{table}
 \centering
-\begin{tabular}{ |c|c| }
+\begin{tabular}{ |c|c|c| }
 \hline
 Offset & Size & Description \\
 \hline
@@ -78,7 +88,7 @@ A node describes an abstract file (first child entry is NUL) or a directory (fir
 
 \begin{table}
 \centering
-\begin{tabular}{ |c|c| }
+\begin{tabular}{ |c|c|c| }
 \hline
 Offset & Size & Description \\
 \hline
@@ -96,7 +106,7 @@ A file fragment describes a piece of data blob with a size specified in the prev
 
 \begin{table}
 \centering
-\begin{tabular}{ |c|c| }
+\begin{tabular}{ |c|c|c| }
 \hline
 Offset & Size & Description \\
 \hline
@@ -113,20 +123,20 @@ Offset & Size & Description \\
 
 \begin{table}
 \centering
-\begin{tabular}{ |c|c| }
+\begin{tabularx}{\textwidth}{ |c|p{2.5em}|p{2.5em}|p{2.5em}|X| }
 \hline
-Code & Name & Usage of location field & Usage of extra field & Description \\
+Code & Name & Location & Extra & Description \\
 \hline
-01h & File modification & Node pointer & Contains the offset at which the modification should be applied at & Contains data that should replace old data, does not modify size of file \\
-02h & Expand/Shrink & Node pointer & New size of file & Shrinks or expands a file and makes it's size to be "New size" \\
-03h & Unlink from chain & Node pointer & Previous node in the list & Deletes a node and delinks it from a chain. If previous node is NUL then the field is ignored.
-04h & Link to chain & Node pointer & Previous node in the list & Adds a node to a chain. If previous node is NUL then the field is ignored.
-05h & Copy & Node pointer & Target parent & Copies node pointer (and it's children and file fragments) and adds it to the chain of target parent
-06h & Change node descriptor & Node pointer & New node pointer & Replaces the contents of the node descriptor with a new node descriptor
-07h & Resize & Direction & Offset & Forces the driver to make all node descriptors, journal descriptor, file fragments and any other data to be above offset, and update the root block accordingly. If direction is 01h then every data must be below offset, otherwise it must be above.
+01h & File modification & Node & Contains the offset at which the modification should be applied at & Contains data that should replace old data, does not modify size of file \\
+02h & Expand/Shrink & Node & New size of file & Shrinks or expands a file and makes it's size to be "New size" \\
+03h & Unlink from chain & Node & Previous node in the list & Deletes a node and delinks it from a chain. If \textbf{Previous} node is NUL then the field is ignored \\
+04h & Link to chain & Node & Previous node in the list & Adds a node to a chain. If \textbf{Previous} node is NUL then the field is ignored \\
+05h & Copy & Node pointer & Parent & Copies node pointer (and it's children and file fragments) and adds it to the chain of target \textbf{Parent} \\
+06h & Change node descriptor & Node & New node & Replaces the contents of the \textbf{Node} descriptor with a \textbf{New node} descriptor \\
+07h & Resize & Direction & Offset & Forces the driver to make all node descriptors, journal descriptor, file fragments and any other data to be (depending on \textbf{Direction}) above or below \textbf{Offset}, and update the root block accordingly. If direction is 01h then every data must be below, otherwise it must be above \\
 \hline
-\end{tabular}
-\caption{Types}
+\end{tabularx}
+\caption{Types of journaling descriptor, first row describes code which should be scanned in \textbf{Type of event}, the third row describes the usage of the location field and then the fourth column describes the usage of the extra field. They both apply for the specific type.}
 \end{table}
 
 If an entry is corrupt (type is 00h, or Location and Extra fields are not 00h when N/A is specified) the event can be discarded safely.
