@@ -2,8 +2,8 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{hyperref}
-\usepackage{tabularx}
 \usepackage{multirow}
+\usepackage{minted}
 \usepackage[latin1]{inputenc}
 
 \title{DividendFS}
@@ -12,9 +12,17 @@
 \begin{document}
 \maketitle
 
+\newpage
+
 \section{Preface}
-\textbf{DividendFS} (or \textbf{DFS} for short) surges from the idea that a simple filesystem should be designed to be as easy to implement for growing kernels, while being fast and reliable for more mature ones.
-A main tradeoff of DFS is \textbf{size} for \textbf{speed}, which should be taken in account for all implementations.
+\textbf{DividendFS} (or \textbf{DFS}, as referred in this document for short) is a new filesystem devised from the following ideas:
+
+\begin{itemize}
+	\item \textbf{Speed} The filesystem should have a decent speed, both on read, write and modify operations.
+	\item \textbf{Ease of implementation} The filesystem should be relatively easy to code for, and be able to have a read-only, no extensions implementation be written in less than 350 bytes.
+\end{itemize}
+
+\newpage
 
 \section{Terminology}
 \begin{itemize}
@@ -23,123 +31,213 @@ A main tradeoff of DFS is \textbf{size} for \textbf{speed}, which should be take
 	\item Journal descriptor: A descriptor that describes a event or action to be done in the filesystem.
 	\item File: Refers to the conjuntion of file fragments that conform a file
 	\item Children: If used along with node descriptor; Describes the chain of node descriptors which conform a list of children in which the parent is parent of.
+	\item Root block: The first block on the root chain, the UNIX equivalent of "/".
 \end{itemize}
+
+\newpage
+
+\section{Filesystem}
+The pointers in DFS are relative to the start of the header. All numbers and fields are little endian.
+Unlike other filesystems, the bootloader does not nescesarily needs to be within the root block (or partition descriptor, in this case), the bootloader can be in it's own 512 byte sector.
 
 \section{Node filesystem}
 
-The interface in DFS assumes that the disk is a plain array.
-All numbers and fields are assumed to be little endian, regardless of the platform the filesystem is at.
-A 4NUL is a 4-byte sequence of pure NUL bytes (00h). This is deliberate to allow UTF-8/UTF-16 encodings on names.
-All entries are 16-byte aligned.
-
 \subsection{Partition descriptor}
 
-Unlike other filesystems, the bootloader does not nescesarily needs to be within the root block, the bootloader can be in it's own 512 byte sector.
-In the first block (boot block or partition start block), at the start of the sector a table, described below must be there for making a valid DFS partition:
+In the first block (boot block or partition start block) of the DFS partition, at the start of the sector a table, described below must be there for making a valid DFS partition:
 
-\begin{table}
-\centering
-\begin{tabular}{ |c|c|c| }
-\hline
-Offset & Size & Purpose \\
-\hline
-+0 & 4 & Identifier ASCII characters: "DvFS" \\
-+4 & 4 & DFS version, a valid implementation uses 00h \\
-+8 & 8 & First journaling block \\
-+16 & 8 & Max number of journaling blocks \\
-+24 & 8 & Current number of journaling blocks \\
-+32 & 8 & Root block \\
-+40 & 8 & Bitmap granularity \\
-+48 & 8 & Allocation bitmap location \\
-+56 & 8 & Size of partition \\
-\hline
-\end{tabular}
-\caption{Structure of the partition descriptor}
-\end{table}
+\begin{minted}{c}
+struct dfs_header {
+	uint8_t identifier[4];
+	uint8_t version;
+	uint64_t first_journaling_block;
+	uint64_t root_block;
+	uint16_t mirror_partition;
+	uint16_t bmp_granularity;
+	uint16_t size_of_part;
+	uint64_t alloc_bmp[];
+};
+\end{minted}
 
-Bitmap granularity specifies the number of bytes that each bit represents in the partition bitmap. The bitmap is a sequence of bytes that represents n bytes from the partition. Size of this bitmap (in bytes) can be determined by using the following formula: (size\_of\_partition/bitmap\_granularity)/8
-Root block contains the UNIX equivalent of "/".
+\begin{itemize}
+	\item \textbf{identifier} Must be '4DFS' (in ASCII) on all implementations.
+	\item \textbf{version} Upper nibble denotes major version number, lower nibble denotes lower version number. Current implementation is 03h.
+	\item \textbf{first\_journaling\_block} Pointer where the journaling descriptor block resides.
+	\item \textbf{root\_block} Pointer where the first root block exists.
+	\item \textbf{mirror\_partition} Pointer where the mirror (or backup) DFS header resides at.
+	\item \textbf{bmp\_granularity} How many bytes a bit in the bitmap represents.
+	\item \textbf{size\_of\_part} Size of partition in 4096 byte units.
+	\item \textbf{alloc\_bmp} Array representing the allocation bitmap.
+\end{itemize}
 
-\subsection{Node entry}
+\begin{minted}{c}
+struct dfs_node_entry {
+	uint64_t next_entry;
+	uint64_t child_entry;
+	uint64_t fragment;
+	uint64_t symlink;
+	uint64_t file_size;
+	uint64_t utc_creation_time;
+	uint64_t utc_edition_time;
+	uint64_t utc_access_time;
+	uint16_t group_perms;
+	uint16_t user_perms;
+	uint16_t owner_uid;
+	uint16_t creator_uid;
+	uint8_t os_id;
+	uint64_t os_specific;
+	uint32_t name[];
+};
+\end{minted}
 
-\begin{table}
-\centering
-\begin{tabular}{ |c|c|c| }
-\hline
-Offset & Size & Description \\
-\hline
-+0 & 8 & Next entry \\
-+8 & 8 & First child entry \\
-+16 & 8 & First fragment entry \\
-+24 & 8 & Symbolic link entry \\
-+32 & 8 & UTC Creation time \\
-+40 & 8 & UTC Edition time \\
-+48 & 2 & Group permissions \\
-+50 & 2 & User permissions \\
-+52 & 8 & OS-Specific extra data \\
-+60 & 2 & Id of the OS who created this file \\
-+62 & ... & 4NUL terminated string \\
-\hline
-\end{tabular}
-\caption{Structure of a node entry}
-\end{table}
+\begin{itemize}
+	\item \textbf{child\_entry} Pointer where the first node entry representing the child chain is, if NUL this must be a file/symlink.
+	\item \textbf{fragment} Pointer where the first file fragment resides at, if NUL then this must be a directory/symlink.
+	\item \textbf{symlink} Pointer pointing to the symlink target node, NUL meaning this is not a symbolic link.
+	\item \textbf{utc\_creation\_time} Creation time.
+	\item \textbf{utc\_edition\_time} Edition time.
+	\item \textbf{utc\_access\_time} Access time.
+	\item \textbf{group\_perms} UNIX permissions for group.
+	\item \textbf{user\_perms} UNIX permissions for user.
+	\item \textbf{owner\_uid} UNIX id of owner user.
+	\item \textbf{creator\_uid} UNIX id of the creator user.
+	\item \textbf{os\_id} OS id who created this node, this allows for OS-specific extensions. An extension can do anything, implementations are not required to know this specific metadata beforehand.
+	\item \textbf{os\_specific} OS specific metadata, used per-OS basis.
+	\item \textbf{name} A 4NUL terminated string. 4NUL meaning that 4 zeroes represent the end of the string. The string can contain any characters.
+\end{itemize}
 
-A node describes an abstract file (first child entry is NUL) or a directory (first child entry is not NUL) or a symbolic link (symbolic link entry is not NUL). A symbolic link cannot have children and should be taken as a invalid node. A node without symbolic link and without file fragments and without child nodes (all NUL) should be discarded and promptly deleted from the list.
+If the \textbf{child\_entry} or \textbf{fragment} are not NUL and \textbf{symlink} is not NUL then it's an invalid entry. If all entries are NUL then this entry should be promptly removed.
 
-\begin{table}
-\centering
-\begin{tabular}{ |c|c|c| }
-\hline
-Offset & Size & Description \\
-\hline
-+0 & 8 & Next file fragment \\
-+8 & 8 & Size \\
-+16 & ... & Data blob \\
-\hline
-\end{tabular}
-\caption{Structure of a file fragment}
-\end{table}
+\begin{minted}{c}
+struct dfs_fragment {
+	uint64_t size;
+	uint64_t checksum;
+	uint64_t next;
+	uint8_t data_blob[];
+};
+\end{minted}
 
-A file fragment describes a piece of data blob with a size specified in the previous parameter. Consequent fragments should be placed after the obtained blob in memory, as they are sequential.
+\begin{itemize}
+	\item \textbf{size} Size of the fragment entry.
+	\item \textbf{checksum} Checksum of file contents (1st byte of data blob XOR'ed by the last byte of the data blob).
+	\item \textbf{next} Pointer to next fragment entry.
+	\item \textbf{data\_blob} Raw data blob, no EOF required, take in account size.
+\end{itemize}
+
+The pointer to data blob points to the actual data of the file stored in disk. Size tells the size of the data blob. The data blob is always padded to the bitmap granularity. A checksum check is obligatory to keep data in good state.
+
+\newpage
 
 \section{Journaling filesystem}
 
+The Journaling filesystem guarantees log-then-do pipeline when doing file modifications more safely without the worry about lost data or even worse: broken chains. The use of this feature is not required for a compliant implementation.
+
+\begin{minted}{c}
+struct dfs_journal_entry {
+	uint8_t type;
+	uint64_t next;
+	uint64_t size;
+	uint8_t data_blob[];
+};
+\end{minted}
+
+\begin{itemize}
+	\item \textbf{type} Type of journal event.
+	\item \textbf{next} Next journal event.
+	\item \textbf{size} Size of data blob.
+	\item \textbf{data\_blob} Data blob.
+\end{itemize}
+
+\newpage
+
+\subsection{Journal event type}
+
 \begin{table}
 \centering
-\begin{tabular}{ |c|c|c| }
+\begin{tabular}{ |c|c|c|c| }
 \hline
-Offset & Size & Description \\
+Code & Name & Location & Extra \\
 \hline
-+0 & 8 & Next journal entry \\
-+8 & 8 & Type of event \\
-+16 & 8 & Size of data blob \\
-+24 & 8 & Location \\
-+32 & 8 & Extra \\
-+40 & ... & Data blob \\
+01h & File modification & Node & Offset \\
+02h & Expand Shrink & Node & New size of file \\
+03h & Unlink from chain & Node & Previous node \\
+04h & Link to chain & Node & Previous node \\
+05h & Copy & Node pointer & Parent \\
+06h & Change node descriptor & Node & New node \\
+07h & Resize & Direction & Offset \\
 \hline
 \end{tabular}
-\caption{Structure of a journal event}
+\caption{Types of journaling events}
 \end{table}
 
-\begin{table}
-\centering
-\begin{tabularx}{\textwidth}{ |c|p{2.5em}|p{2.5em}|p{2.5em}|X| }
-\hline
-Code & Name & Location & Extra & Description \\
-\hline
-01h & File modification & Node & Contains the offset at which the modification should be applied at & Contains data that should replace old data, does not modify size of file \\
-02h & Expand/Shrink & Node & New size of file & Shrinks or expands a file and makes it's size to be "New size" \\
-03h & Unlink from chain & Node & Previous node in the list & Deletes a node and delinks it from a chain. If \textbf{Previous} node is NUL then the field is ignored \\
-04h & Link to chain & Node & Previous node in the list & Adds a node to a chain. If \textbf{Previous} node is NUL then the field is ignored \\
-05h & Copy & Node pointer & Parent & Copies node pointer (and it's children and file fragments) and adds it to the chain of target \textbf{Parent} \\
-06h & Change node descriptor & Node & New node & Replaces the contents of the \textbf{Node} descriptor with a \textbf{New node} descriptor \\
-07h & Resize & Direction & Offset & Forces the driver to make all node descriptors, journal descriptor, file fragments and any other data to be (depending on \textbf{Direction}) above or below \textbf{Offset}, and update the root block accordingly. If direction is 01h then every data must be below, otherwise it must be above \\
-\hline
-\end{tabularx}
-\caption{Types of journaling descriptor, first row describes code which should be scanned in \textbf{Type of event}, the third row describes the usage of the location field and then the fourth column describes the usage of the extra field. They both apply for the specific type.}
-\end{table}
+\begin{itemize}
+	\item \textbf{File modification} Contains data that should replace old data, does not modify size of file, Data should be applied at \textbf{Offset}
+	\item \textbf{Expand Shrink} Shrinks or expands a file and makes it's size to be "New size"
+	\item \textbf{Unlink from chain} Deletes a node and delinks it from a chain. If \textbf{Previous} node is NUL then the field is ignored
+	\item \textbf{Link to chain} Adds a node to a chain. If \textbf{Previous} node is NUL then the field is ignored
+	\item \textbf{Copy \& Node pointer} Copies node pointer (and it's children and file fragments) and adds it to the chain of target \textbf{Parent}
+	\item \textbf{Change node descriptor \& Node} Replaces the contents of the \textbf{Node} descriptor with a \textbf{New node} descriptor
+	\item \textbf{Resize} Forces the driver to make all node descriptors, journal descriptor, file fragments and any other data to be (depending on \textbf{Direction}) above or below \textbf{Offset}, and update the root block accordingly. If direction is 01h then every data must be below, otherwise it must be above
+\end{itemize}
 
-If an entry is corrupt (type is 00h, or Location and Extra fields are not 00h when N/A is specified) the event can be discarded safely.
-The usage of journaling is entirely optional and is up to implementation on whenever or not to implement it.
+\newpage
+
+\section{Sample implementations}
+This implementations are given for reference:
+
+\subsection{Reader implementation}
+Does not take in account any of the optional extensions of the DFS
+\begin{minted}{c}
+void * read_file(const char * filename) {
+	struct dfs_header * hdr;
+	struct dfs_node_entry * node;
+	unsigned lba;
+	
+	hdr = read_disk_at(512); // read sector AFTER bootloader
+	
+	// read root block
+	node = read_disk_at(hdr->root_block);
+	
+	// while filename not equal we continue recursing
+	while(strcmp(node->name,filename)) {
+		node = read_disk_at(node->next);
+	}
+	
+	// otherwise we got our node!
+	
+	// recolect all file fragments
+	struct dfs_fragment * frag;
+	size_t off;
+	void * mem;
+	
+	mem = malloc(node->size);
+	off = 0;
+	
+	frag = read_disk_at(node->fragment);
+	while(1) {
+		unsigned char * c, x;
+		unsigned checksum;
+		
+		// place frag data into buffer
+		memcpy(mem+off,frag->data_blob,frag->size);
+		off += frag->size;
+		
+		c = (unsigned char *)frag->data_blob;
+		x = (unsigned char *)frag->data_blob+frag->size;
+		
+		// checksum check
+		if((*c)^(*x) != frag->checksum)
+			kpanic("Checksum check failed!\n");
+		
+		// go to next fragment
+		if(frag->next == NULL)
+			break;
+		frag = read_disk_at(frag->next);
+	}
+	
+	// return file in memory
+	return mem;
+}
+\end{minted}
 
 \end{document}
