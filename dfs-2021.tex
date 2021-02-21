@@ -133,7 +133,7 @@ The pointer to data blob points to the actual data of the file stored in disk. S
 The Journaling filesystem guarantees log-then-do pipeline when doing file modifications more safely without the worry about lost data or even worse: broken chains. The use of this feature is not required for a compliant implementation.
 
 \begin{minted}{c}
-struct dfs_journal_entry {
+struct dfs_journal_event {
 	uint8_t type;
 	uint64_t next;
 	uint64_t size;
