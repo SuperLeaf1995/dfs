@@ -77,13 +77,14 @@ struct dfs_node_entry {
 	uint64_t fragment;
 	uint64_t symlink;
 	uint64_t file_size;
+	uint64_t reserved[4];
 	uint64_t utc_creation_time;
 	uint64_t utc_edition_time;
 	uint64_t utc_access_time;
 	uint16_t group_perms;
 	uint16_t user_perms;
-	uint16_t owner_uid;
-	uint16_t creator_uid;
+	uint16_t gid;
+	uint16_t uid;
 	uint8_t os_id;
 	uint64_t os_specific;
 	uint32_t name[];
@@ -94,13 +95,14 @@ struct dfs_node_entry {
 	\item \textbf{child\_entry} Pointer where the first node entry representing the child chain is, if NUL this must be a file/symlink.
 	\item \textbf{fragment} Pointer where the first file fragment resides at, if NUL then this must be a directory/symlink.
 	\item \textbf{symlink} Pointer pointing to the symlink target node, NUL meaning this is not a symbolic link.
+	\item \textbf{reserved} Reserved fields, set them to 0 for now.
 	\item \textbf{utc\_creation\_time} Creation time.
 	\item \textbf{utc\_edition\_time} Edition time.
 	\item \textbf{utc\_access\_time} Access time.
 	\item \textbf{group\_perms} UNIX permissions for group.
 	\item \textbf{user\_perms} UNIX permissions for user.
-	\item \textbf{owner\_uid} UNIX id of owner user.
-	\item \textbf{creator\_uid} UNIX id of the creator user.
+	\item \textbf{gid} UNIX id of group.
+	\item \textbf{uid} UNIX id of user.
 	\item \textbf{os\_id} OS id who created this node, this allows for OS-specific extensions. An extension can do anything, implementations are not required to know this specific metadata beforehand.
 	\item \textbf{os\_specific} OS specific metadata, used per-OS basis.
 	\item \textbf{name} A 4NUL terminated string. 4NUL meaning that 4 zeroes represent the end of the string. The string can contain any characters.
