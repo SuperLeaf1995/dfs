@@ -54,7 +54,8 @@ struct dfs_header {
 	uint64_t root_block;
 	uint16_t mirror_partition;
 	uint16_t bmp_granularity;
-	uint16_t size_of_part;
+	uint64_t size_of_part;
+	uint64_t reserved[8];
 	uint64_t alloc_bmp[];
 };
 \end{minted}
@@ -67,6 +68,7 @@ struct dfs_header {
 	\item \textbf{mirror\_partition} Pointer where the mirror (or backup) DFS header resides at.
 	\item \textbf{bmp\_granularity} How many bytes a bit in the bitmap represents.
 	\item \textbf{size\_of\_part} Size of partition in 4096 byte units.
+	\item \textbf{reserved} Space left for future use.
 	\item \textbf{alloc\_bmp} Array representing the allocation bitmap.
 \end{itemize}
 
