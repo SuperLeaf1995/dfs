@@ -1,6 +1,5 @@
 //
 // Read only DFS implementation
-// Public domain
 //
 
 #include <stdio.h>
