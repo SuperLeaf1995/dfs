@@ -1,7 +1,3 @@
-//
-// Read only DFS implementation
-//
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +12,7 @@ struct dfs_header {
 	uint64_t root_block;
 	uint16_t mirror_partition;
 	uint16_t bmp_granularity;
-	uint16_t size_of_part;
+	uint64_t size_of_part;
 	uint8_t alloc_bmp[];
 };
 
@@ -29,8 +25,7 @@ struct dfs_node_entry {
 	uint64_t utc_creation_time;
 	uint64_t utc_edition_time;
 	uint64_t utc_access_time;
-	uint16_t group_perms;
-	uint16_t user_perms;
+	uint16_t nix_perms;
 	uint16_t gid;
 	uint16_t uid;
 	uint8_t os_id;
@@ -228,10 +223,73 @@ static int dfs_list(void) {
 	return 0;
 }
 
+static int dfs_write(const char * name, void * file, size_t s) {
+	struct dfs_header * head = diskbuf;
+	
+	// Write entry
+	struct dfs_node_entry * node = (void *)head+le64toh(head->root_block);
+	
+	// Recurse
+	while(1) {
+		if(le64toh(node->next_entry) == 0) {
+			break;
+		}
+		node = (void *)head+le64toh(node->next_entry);
+	}
+	
+	struct dfs_node_entry * new_node;
+	
+	new_node = (void *)((uintptr_t)head+(uintptr_t)block_alloc(head)*le16toh(head->bmp_granularity));
+	
+	node->next_entry = htole64((uintptr_t)new_node-(uintptr_t)head);
+	new_node->next_entry = 0;
+	
+	// put name
+	strcpy((char *)&new_node->name,name);
+	
+	// write file fragments
+	size_t sz = s;
+	sz = sz+512-(sz%512);
+	
+	// recursively do it
+	size_t it = 0;
+	
+	// put file fragment in here not here
+	struct dfs_fragment * fragment = NULL;
+	
+	new_node->fragment = (uintptr_t)fragment;
+	
+	size_t j = sz/512;
+	
+	for(size_t i = 0; i < j; i++) {
+		struct dfs_fragment * old_fragment = fragment;
+		uintptr_t ptr;
+		ptr = (uintptr_t)head;
+		ptr += (uintptr_t)block_alloc(head)*le16toh(head->bmp_granularity);
+		
+		fragment = (void *)ptr;
+		
+		if(old_fragment != NULL) {
+			old_fragment->next = htole64((uintptr_t)fragment-(uintptr_t)head);
+		}
+		
+		// copy
+		fragment->checksum = 0xFF; // todo: implement checksum
+		fragment->size = htole64(512-sizeof(struct dfs_fragment));
+		memcpy(&fragment->data_blob[it],(void *)((uintptr_t)file+it),512-sizeof(struct dfs_fragment));
+		
+		// next block
+		sz -= 512-sizeof(struct dfs_fragment);
+		it += 512-sizeof(struct dfs_fragment);
+	}
+	return 0;
+}
+
 int main(int argc, char ** argv) {
 	if(argc < 2) {
 		printf("usage: ./dfs [disk] [args...]\n");
 		printf("/f : formats a disk (default size of 32.78 MB)\n");
+		printf("/a [file] : adds a file to a disk\n");
 		printf("/l : lists information about a disk\n");
 		printf("example: './dfs disk.img /f' will format a disk\n");
 	}
@@ -244,5 +302,10 @@ int main(int argc, char ** argv) {
 	}
 	else if(!strcmp(argv[2],"/l")) {
 		dfs_list();
+	}
+	else if(!strcmp(argv[2],"/a")) {
+		void * fbuf = file2mem(argv[3]);
+		dfs_write(argv[3],fbuf,4096);
+		mem2file(argv[1],diskbuf,DEFAULT_DISK_SIZE);
 	}
 }
