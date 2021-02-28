@@ -1,3 +1,7 @@
+//
+// Read only DFS implementation
+//
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +17,7 @@ struct dfs_header {
 	uint16_t mirror_partition;
 	uint16_t bmp_granularity;
 	uint64_t size_of_part;
+	uint64_t reserved[8];
 	uint8_t alloc_bmp[];
 };
 
