@@ -25,6 +25,7 @@ struct dfs_node_entry {
 	uint64_t next_entry;
 	uint64_t child_entry;
 	uint64_t fragment;
+	uint64_t last_fragment;
 	uint64_t symlink;
 	uint64_t file_size;
 	uint64_t utc_creation_time;
@@ -42,6 +43,7 @@ struct dfs_fragment {
 	uint64_t size;
 	uint64_t checksum;
 	uint64_t next;
+	uint64_t previous;
 	uint8_t data_blob[];
 };
 
