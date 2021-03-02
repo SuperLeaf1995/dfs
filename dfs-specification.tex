@@ -77,6 +77,7 @@ struct dfs_node_entry {
 	uint64_t next_entry;
 	uint64_t child_entry;
 	uint64_t fragment;
+	uint64_t last_fragment;
 	uint64_t symlink;
 	uint64_t file_size;
 	uint64_t reserved[4];
@@ -86,6 +87,7 @@ struct dfs_node_entry {
 	uint16_t nix_perms;
 	uint16_t gid;
 	uint16_t uid;
+	uint64_t reserved[8];
 	uint8_t os_id;
 	uint64_t os_specific;
 	uint32_t name[];
@@ -95,6 +97,7 @@ struct dfs_node_entry {
 \begin{itemize}
 	\item \textbf{child\_entry} Pointer where the first node entry representing the child chain is, if NUL this must be a file/symlink.
 	\item \textbf{fragment} Pointer where the first file fragment resides at, if NUL then this must be a directory/symlink.
+	\item \textbf{last_fragment} Last file fragment in chain.
 	\item \textbf{symlink} Pointer pointing to the symlink target node, NUL meaning this is not a symbolic link.
 	\item \textbf{reserved} Reserved fields, set them to 0 for now.
 	\item \textbf{utc\_creation\_time} Creation time.
@@ -103,6 +106,7 @@ struct dfs_node_entry {
 	\item \textbf{nix_perms} *NIX permissions for group.
 	\item \textbf{gid} *NIX id of group.
 	\item \textbf{uid} *NIX id of user.
+	\item \textbf{reserved} Reserved fields, must be zero.
 	\item \textbf{os\_id} OS id who created this node, this allows for OS-specific extensions. An extension can do anything, implementations are not required to know this specific metadata beforehand.
 	\item \textbf{os\_specific} OS specific metadata, used per-OS basis.
 	\item \textbf{name} A 4NUL terminated string. 4NUL meaning that 4 zeroes represent the end of the string. The string can contain any characters.
@@ -132,6 +136,7 @@ struct dfs_fragment {
 	uint64_t size;
 	uint64_t checksum;
 	uint64_t next;
+	uint64_t previous;
 	uint8_t data_blob[];
 };
 \end{minted}
@@ -140,6 +145,7 @@ struct dfs_fragment {
 	\item \textbf{size} Size of the fragment entry.
 	\item \textbf{checksum} Checksum of file contents (1st byte of data blob XOR'ed by the last byte of the data blob).
 	\item \textbf{next} Pointer to next fragment entry.
+	\item \textbf{previous} Pointer to previous fragment entry.
 	\item \textbf{data\_blob} Raw data blob, no EOF required, take in account size.
 \end{itemize}
 
