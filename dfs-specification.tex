@@ -110,29 +110,20 @@ struct dfs_node_entry {
 
 The following is a table of possible OS id's:
 \begin{itemize}
-	\item \textbf{0x00} Means the OS who made this node is a POSIX-compatible OS, the OS Specific denotes the type of node.
+	\item \textbf{0x00} Generic OS, OS Specific is not used.
+	\item \textbf{0x01} Means the OS who made this node is a POSIX-compatible OS, the OS Specific denotes the type of node.
 	\begin{itemize}
-		\item \textbf{0x00} File
-	\end{itemize}
-	\begin{itemize}
-		\item \textbf{0x01} Pipe
-	\end{itemize}
-	\begin{itemize}
-		\item \textbf{0x02} FIFO
-	\end{itemize}
-	\begin{itemize}
-		\item \textbf{0x03} Block device
-	\end{itemize}
-	\begin{itemize}
-		\item \textbf{0x04} Symbolic link
-	\end{itemize}
-	\begin{itemize}
-		\item \textbf{0x05} Directory symbolic link
-	\end{itemize}
-	\begin{itemize}
-		\item \textbf{0x06} Mount point
+		\item \textbf{0x01} File
+		\item \textbf{0x02} Pipe
+		\item \textbf{0x03} FIFO pipe
+		\item \textbf{0x04} Block device
+		\item \textbf{0x05} Symbolic link
+		\item \textbf{0x06} Directory symbolic link
+		\item \textbf{0x07} Mount point
 	\end{itemize}
 \end{itemize}
+
+A comforming implementation should not parse a unknown OS ID without proper support. Any OS Specific field should not affect or otherwise break compatibility with other OSes.
 
 If the \textbf{child\_entry} or \textbf{fragment} are not NUL and \textbf{symlink} is not NUL then it's an invalid entry. If all entries are NUL then this entry should be promptly removed.
 
