@@ -68,7 +68,7 @@ struct dfs_header {
 	\item \textbf{mirror\_partition} Pointer where the mirror (or backup) DFS header resides at.
 	\item \textbf{bmp\_granularity} How many bytes a bit in the bitmap represents.
 	\item \textbf{size\_of\_part} Size of partition in 4096 byte units.
-	\item \textbf{reserved} Space left for future use.
+	\item \textbf{reserved} Space left for future use. Must always be 0.
 	\item \textbf{alloc\_bmp} Array representing the allocation bitmap.
 \end{itemize}
 
@@ -106,6 +106,32 @@ struct dfs_node_entry {
 	\item \textbf{os\_id} OS id who created this node, this allows for OS-specific extensions. An extension can do anything, implementations are not required to know this specific metadata beforehand.
 	\item \textbf{os\_specific} OS specific metadata, used per-OS basis.
 	\item \textbf{name} A 4NUL terminated string. 4NUL meaning that 4 zeroes represent the end of the string. The string can contain any characters.
+\end{itemize}
+
+The following is a table of possible OS id's:
+\begin{itemize}
+	\item \textbf{0x00} Means the OS who made this node is a POSIX-compatible OS, the OS Specific denotes the type of node.
+	\begin{itemize}
+		\item \textbf{0x00} File
+	\end{itemize}
+	\begin{itemize}
+		\item \textbf{0x01} Pipe
+	\end{itemize}
+	\begin{itemize}
+		\item \textbf{0x02} FIFO
+	\end{itemize}
+	\begin{itemize}
+		\item \textbf{0x03} Block device
+	\end{itemize}
+	\begin{itemize}
+		\item \textbf{0x04} Symbolic link
+	\end{itemize}
+	\begin{itemize}
+		\item \textbf{0x05} Directory symbolic link
+	\end{itemize}
+	\begin{itemize}
+		\item \textbf{0x06} Mount point
+	\end{itemize}
 \end{itemize}
 
 If the \textbf{child\_entry} or \textbf{fragment} are not NUL and \textbf{symlink} is not NUL then it's an invalid entry. If all entries are NUL then this entry should be promptly removed.
